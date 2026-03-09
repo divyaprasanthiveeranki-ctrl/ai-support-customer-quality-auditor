@@ -2,3 +2,6 @@ project_id = "ucyqnmkuexiyibmzfjoi"
 
 [functions.upload]
 verify_jwt = false
+
+[functions.analyze]
+verify_jwt = false
