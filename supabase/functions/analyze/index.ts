@@ -26,11 +26,9 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Build a readable transcript text for analysis
     const words = transcript.words || [];
     let transcriptText = transcript.text || "";
 
-    // If we have words with speakers, build a speaker-labeled version
     if (words.length > 0) {
       const segments: string[] = [];
       let currentSpeaker = "";
@@ -76,15 +74,37 @@ Return this exact JSON structure:
   ],
   "summary": {
     "summary": "<2-3 sentence summary of the call>",
-    "category": "<e.g. Technical Support, Billing, Account Issue>",
+    "issue": "<what the customer reported>",
+    "actionTaken": "<what the agent did>",
     "resolution": "<Resolved|Unresolved|Escalated|Pending>",
+    "resolutionDetail": "<brief description of how it was resolved>",
+    "category": "<e.g. Technical Support, Billing, Account Issue>",
     "sentiment": "<Positive|Negative|Neutral|Mixed>",
     "keyInsights": ["<insight1>", "<insight2>", "<insight3>"]
+  },
+  "keywords": [
+    {"word": "<important keyword or phrase>", "category": "<issue|action|sentiment|product>", "count": <occurrences>}
+  ],
+  "qualityScores": {
+    "greetingQuality": <1-10>,
+    "empathy": <1-10>,
+    "problemUnderstanding": <1-10>,
+    "resolutionClarity": <1-10>,
+    "professionalism": <1-10>,
+    "overallScore": <1-100>
+  },
+  "insights": {
+    "totalSentences": <number>,
+    "longestSpeakerTurn": "<Speaker 1 or Speaker 2>",
+    "interruptions": <number>,
+    "emotionChanges": <number>
   }
 }
 
-For emotions: Create one entry per speaker turn/segment, mapping the customer's emotional state at that point. Use the timestamps from the transcript.
-For summary: Provide a concise support ticket summary.`;
+For emotions: Create one entry per speaker turn/segment, mapping the customer's emotional state at that point.
+For keywords: Extract 5-8 important words or short phrases from the conversation that highlight the key topics.
+For qualityScores: Rate the agent's performance in each category.
+For insights: Provide call analytics metrics.`;
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -110,8 +130,6 @@ For summary: Provide a concise support ticket summary.`;
 
     const aiData = await aiResponse.json();
     let content = aiData.choices?.[0]?.message?.content || "";
-
-    // Strip markdown code fences if present
     content = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
 
     let analysis;
@@ -131,7 +149,12 @@ For summary: Provide a concise support ticket summary.`;
       .from("transcriptions")
       .update({
         emotion_data: analysis.emotions,
-        summary_data: analysis.summary,
+        summary_data: {
+          ...analysis.summary,
+          keywords: analysis.keywords,
+          qualityScores: analysis.qualityScores,
+          insights: analysis.insights,
+        },
       })
       .eq("id", transcription_id);
 
