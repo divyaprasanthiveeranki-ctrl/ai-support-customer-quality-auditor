@@ -5,8 +5,15 @@ import { DashboardAudioUploader } from "@/components/DashboardAudioUploader";
 import { TranscriptDisplay } from "@/components/TranscriptDisplay";
 import { EmotionTimeline } from "@/components/EmotionTimeline";
 import { SmartSummary, type SummaryData } from "@/components/SmartSummary";
-import { FileAudio, LogOut, User, Loader2 } from "lucide-react";
+import { SpeakerPieChart } from "@/components/SpeakerPieChart";
+import { SpeakerTimeline } from "@/components/SpeakerTimeline";
+import { CallInsights } from "@/components/CallInsights";
+import { QualityScorecard } from "@/components/QualityScorecard";
+import { KeywordHighlights } from "@/components/KeywordHighlights";
+import { ExportReport } from "@/components/ExportReport";
+import { FileAudio, LogOut, User, Loader2, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 
 interface CallRecord {
@@ -60,11 +67,19 @@ export default function Dashboard() {
 
       const analysis = await response.json();
 
-      // Update local state
       setCalls((prev) =>
         prev.map((c) =>
           c.id === transcriptionId
-            ? { ...c, emotion_data: analysis.emotions, summary_data: analysis.summary }
+            ? {
+                ...c,
+                emotion_data: analysis.emotions,
+                summary_data: {
+                  ...analysis.summary,
+                  keywords: analysis.keywords,
+                  qualityScores: analysis.qualityScores,
+                  insights: analysis.insights,
+                },
+              }
             : c
         )
       );
@@ -79,7 +94,6 @@ export default function Dashboard() {
   };
 
   const handleTranscriptReceived = async (data: any, fileName: string) => {
-    // Save to database
     const { data: inserted, error } = await supabase
       .from("transcriptions")
       .insert({
@@ -99,28 +113,37 @@ export default function Dashboard() {
     const record = inserted as CallRecord;
     setCalls((prev) => [record, ...prev]);
     setSelectedCallId(record.id);
-
-    // Auto-analyze
     analyzeTranscript(data, record.id);
   };
+
+  const summaryData = selectedCall?.summary_data as SummaryData | null;
+  const keywords = summaryData?.keywords || [];
+  const keywordWords = keywords.map((k: any) => k.word);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Top bar */}
-      <header className="border-b border-border bg-card shrink-0">
-        <div className="flex items-center justify-between px-4 py-3">
+      <header className="border-b border-border bg-card shrink-0 z-10">
+        <div className="flex items-center justify-between px-4 h-14">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <FileAudio className="w-4 h-4 text-primary-foreground" />
             </div>
-            <h1 className="text-base font-bold text-foreground">CallScribe</h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <User className="w-4 h-4" />
-              <span className="hidden sm:inline">{user?.email}</span>
+            <div>
+              <h1 className="text-sm font-bold text-foreground leading-tight">CallScribe</h1>
+              <p className="text-[10px] text-muted-foreground">AI Call Analysis</p>
             </div>
-            <Button variant="ghost" size="sm" onClick={signOut} className="h-8">
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-8 w-8 relative">
+              <Bell className="w-4 h-4" />
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[hsl(var(--speaker-4))] rounded-full" />
+            </Button>
+            <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-1.5">
+              <User className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-xs text-foreground hidden sm:inline">{user?.email}</span>
+            </div>
+            <Button variant="ghost" size="sm" onClick={signOut} className="h-8 text-xs">
               <LogOut className="w-4 h-4" />
               <span className="hidden sm:inline ml-1">Logout</span>
             </Button>
@@ -130,23 +153,9 @@ export default function Dashboard() {
 
       {/* 3-panel layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left panel: Upload & manage */}
-        <aside className="w-72 border-r border-border bg-card p-4 overflow-y-auto shrink-0 hidden md:block">
-          <DashboardAudioUploader
-            calls={calls}
-            selectedCallId={selectedCallId}
-            onCallSelect={setSelectedCallId}
-            onTranscriptReceived={handleTranscriptReceived}
-            isProcessing={isProcessing}
-            setIsProcessing={setIsProcessing}
-            onCallsChange={fetchCalls}
-          />
-        </aside>
-
-        {/* Center panel: Transcript + Emotions */}
-        <main className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Mobile upload */}
-          <div className="md:hidden">
+        {/* Left panel */}
+        <aside className="w-72 border-r border-border bg-card overflow-hidden shrink-0 hidden md:flex md:flex-col">
+          <ScrollArea className="flex-1 p-4">
             <DashboardAudioUploader
               calls={calls}
               selectedCallId={selectedCallId}
@@ -156,45 +165,89 @@ export default function Dashboard() {
               setIsProcessing={setIsProcessing}
               onCallsChange={fetchCalls}
             />
-          </div>
+          </ScrollArea>
+        </aside>
 
-          {selectedCall ? (
-            <>
-              {/* Emotion timeline */}
-              <EmotionTimeline emotions={selectedCall.emotion_data || []} />
+        {/* Center panel */}
+        <main className="flex-1 overflow-hidden flex flex-col">
+          <ScrollArea className="flex-1">
+            <div className="p-4 space-y-4">
+              {/* Mobile upload */}
+              <div className="md:hidden">
+                <DashboardAudioUploader
+                  calls={calls}
+                  selectedCallId={selectedCallId}
+                  onCallSelect={setSelectedCallId}
+                  onTranscriptReceived={handleTranscriptReceived}
+                  isProcessing={isProcessing}
+                  setIsProcessing={setIsProcessing}
+                  onCallsChange={fetchCalls}
+                />
+              </div>
 
-              {isAnalyzing && (
-                <div className="flex items-center gap-2 py-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                  <p className="text-sm text-muted-foreground">Analyzing emotions & generating summary…</p>
+              {selectedCall ? (
+                <>
+                  {isAnalyzing && (
+                    <div className="flex items-center gap-2 py-3 px-4 bg-primary/5 border border-primary/15 rounded-xl">
+                      <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                      <p className="text-sm text-foreground">Analyzing call with AI…</p>
+                    </div>
+                  )}
+
+                  {/* Chat transcript */}
+                  {selectedCall.transcript_data && (
+                    <TranscriptDisplay data={selectedCall.transcript_data} keywords={keywordWords} />
+                  )}
+
+                  {/* Speaker charts row */}
+                  {selectedCall.transcript_data?.words && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <SpeakerTimeline words={selectedCall.transcript_data.words} />
+                      <SpeakerPieChart words={selectedCall.transcript_data.words} />
+                    </div>
+                  )}
+
+                  {/* Emotion timeline */}
+                  <EmotionTimeline emotions={selectedCall.emotion_data || []} />
+
+                  {/* Keyword highlights */}
+                  <KeywordHighlights keywords={keywords} />
+
+                  {/* Mobile-only right panel content */}
+                  <div className="lg:hidden space-y-4">
+                    <SmartSummary data={summaryData} />
+                    <CallInsights words={selectedCall.transcript_data?.words} insights={summaryData?.insights} />
+                    <QualityScorecard scores={summaryData?.qualityScores || null} />
+                    <ExportReport callRecord={selectedCall} />
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+                    <FileAudio className="w-8 h-8 text-muted-foreground/40" />
+                  </div>
+                  <h2 className="text-lg font-semibold text-foreground mb-1">No call selected</h2>
+                  <p className="text-sm text-muted-foreground max-w-sm">
+                    Upload a call recording or select one from the left panel to view the analysis
+                  </p>
                 </div>
               )}
-
-              {/* Transcript */}
-              {selectedCall.transcript_data && (
-                <TranscriptDisplay data={selectedCall.transcript_data} />
-              )}
-            </>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full text-center py-20">
-              <FileAudio className="w-12 h-12 text-muted-foreground/30 mb-4" />
-              <p className="text-muted-foreground">Upload a call recording or select one from the list</p>
             </div>
-          )}
+          </ScrollArea>
         </main>
 
-        {/* Right panel: Smart Summary */}
-        <aside className="w-80 border-l border-border bg-card p-4 overflow-y-auto shrink-0 hidden lg:block">
-          <SmartSummary data={selectedCall?.summary_data || null} />
+        {/* Right panel */}
+        <aside className="w-80 border-l border-border bg-card overflow-hidden shrink-0 hidden lg:flex lg:flex-col">
+          <ScrollArea className="flex-1 p-4">
+            <div className="space-y-4">
+              <SmartSummary data={summaryData} />
+              <CallInsights words={selectedCall?.transcript_data?.words} insights={summaryData?.insights} />
+              <QualityScorecard scores={summaryData?.qualityScores || null} />
+              <ExportReport callRecord={selectedCall || null} />
+            </div>
+          </ScrollArea>
         </aside>
       </div>
-
-      {/* Mobile summary (show below on smaller screens) */}
-      {selectedCall?.summary_data && (
-        <div className="lg:hidden p-4 border-t border-border">
-          <SmartSummary data={selectedCall.summary_data} />
-        </div>
-      )}
     </div>
   );
 }
