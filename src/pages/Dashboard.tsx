@@ -11,6 +11,7 @@ import { CallInsights } from "@/components/CallInsights";
 import { QualityScorecard } from "@/components/QualityScorecard";
 import { KeywordHighlights } from "@/components/KeywordHighlights";
 import { ExportReport } from "@/components/ExportReport";
+import { CompliancePanel, type ComplianceData } from "@/components/CompliancePanel";
 import { FileAudio, LogOut, User, Loader2, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,6 +23,7 @@ interface CallRecord {
   transcript_data: any;
   emotion_data: any;
   summary_data: any;
+  compliance_data: any;
   created_at: string;
 }
 
@@ -31,6 +33,7 @@ export default function Dashboard() {
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isCheckingCompliance, setIsCheckingCompliance] = useState(false);
 
   const fetchCalls = useCallback(async () => {
     const { data, error } = await supabase
@@ -48,6 +51,79 @@ export default function Dashboard() {
 
   const selectedCall = calls.find((c) => c.id === selectedCallId);
 
+  const buildTranscriptText = (transcriptData: any): string => {
+    const words = transcriptData?.words || [];
+    if (words.length === 0) return transcriptData?.text || "";
+
+    const segments: string[] = [];
+    let currentSpeaker = "";
+    let currentText = "";
+    let currentStart = 0;
+
+    for (const word of words) {
+      if (word.type === "audio_event") continue;
+      const speaker = word.speaker_id || "speaker_0";
+      if (speaker !== currentSpeaker && currentText.trim()) {
+        const mins = Math.floor(currentStart / 60);
+        const secs = Math.floor(currentStart % 60);
+        const ts = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+        const num = parseInt(currentSpeaker.replace("speaker_", ""), 10) + 1;
+        segments.push(`[${ts}] Speaker ${num}: ${currentText.trim()}`);
+        currentText = "";
+      }
+      if (speaker !== currentSpeaker || !currentText) {
+        currentSpeaker = speaker;
+        currentStart = word.start;
+      }
+      currentText += word.text + " ";
+    }
+    if (currentText.trim()) {
+      const mins = Math.floor(currentStart / 60);
+      const secs = Math.floor(currentStart % 60);
+      const ts = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+      const num = parseInt(currentSpeaker.replace("speaker_", ""), 10) + 1;
+      segments.push(`[${ts}] Speaker ${num}: ${currentText.trim()}`);
+    }
+    return segments.join("\n");
+  };
+
+  const runComplianceCheck = async () => {
+    if (!selectedCall?.transcript_data) return;
+    setIsCheckingCompliance(true);
+    try {
+      const transcriptText = buildTranscriptText(selectedCall.transcript_data);
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/compliance-check`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({
+            transcript_text: transcriptText,
+            transcription_id: selectedCall.id,
+          }),
+        }
+      );
+
+      if (!response.ok) throw new Error("Compliance check failed");
+      const result = await response.json();
+
+      setCalls((prev) =>
+        prev.map((c) =>
+          c.id === selectedCall.id ? { ...c, compliance_data: result } : c
+        )
+      );
+      toast.success("Compliance check complete!");
+    } catch (err: any) {
+      console.error("Compliance check error:", err);
+      toast.error("Failed to run compliance check");
+    } finally {
+      setIsCheckingCompliance(false);
+    }
+  };
+
   const analyzeTranscript = async (transcriptData: any, transcriptionId: string) => {
     setIsAnalyzing(true);
     try {
@@ -64,7 +140,6 @@ export default function Dashboard() {
       );
 
       if (!response.ok) throw new Error("Analysis failed");
-
       const analysis = await response.json();
 
       setCalls((prev) =>
@@ -83,7 +158,6 @@ export default function Dashboard() {
             : c
         )
       );
-
       toast.success("Analysis complete!");
     } catch (err: any) {
       console.error("Analysis error:", err);
@@ -194,12 +268,10 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  {/* Chat transcript */}
                   {selectedCall.transcript_data && (
                     <TranscriptDisplay data={selectedCall.transcript_data} keywords={keywordWords} />
                   )}
 
-                  {/* Speaker charts row */}
                   {selectedCall.transcript_data?.words && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                       <SpeakerTimeline words={selectedCall.transcript_data.words} />
@@ -207,10 +279,7 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  {/* Emotion timeline */}
                   <EmotionTimeline emotions={selectedCall.emotion_data || []} />
-
-                  {/* Keyword highlights */}
                   <KeywordHighlights keywords={keywords} />
 
                   {/* Mobile-only right panel content */}
@@ -218,6 +287,12 @@ export default function Dashboard() {
                     <SmartSummary data={summaryData} />
                     <CallInsights words={selectedCall.transcript_data?.words} insights={summaryData?.insights} />
                     <QualityScorecard scores={summaryData?.qualityScores || null} />
+                    <CompliancePanel
+                      data={selectedCall.compliance_data as ComplianceData | null}
+                      isChecking={isCheckingCompliance}
+                      onRunCheck={runComplianceCheck}
+                      hasTranscript={!!selectedCall.transcript_data}
+                    />
                     <ExportReport callRecord={selectedCall} />
                   </div>
                 </>
@@ -243,6 +318,12 @@ export default function Dashboard() {
               <SmartSummary data={summaryData} />
               <CallInsights words={selectedCall?.transcript_data?.words} insights={summaryData?.insights} />
               <QualityScorecard scores={summaryData?.qualityScores || null} />
+              <CompliancePanel
+                data={selectedCall?.compliance_data as ComplianceData | null}
+                isChecking={isCheckingCompliance}
+                onRunCheck={runComplianceCheck}
+                hasTranscript={!!selectedCall?.transcript_data}
+              />
               <ExportReport callRecord={selectedCall || null} />
             </div>
           </ScrollArea>
