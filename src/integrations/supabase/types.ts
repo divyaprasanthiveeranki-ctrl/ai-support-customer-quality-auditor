@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      kb_documents: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          rule: string
+          source: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          rule: string
+          source?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          rule?: string
+          source?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -43,6 +67,7 @@ export type Database = {
       }
       transcriptions: {
         Row: {
+          compliance_data: Json | null
           created_at: string
           emotion_data: Json | null
           file_name: string
@@ -52,6 +77,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          compliance_data?: Json | null
           created_at?: string
           emotion_data?: Json | null
           file_name: string
@@ -61,6 +87,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          compliance_data?: Json | null
           created_at?: string
           emotion_data?: Json | null
           file_name?: string
