@@ -24,13 +24,13 @@ const SPEAKER_STYLES: Record<string, { bubble: string; name: string; label: stri
   speaker_0: {
     bubble: "bg-primary/10 border-primary/20",
     name: "text-primary",
-    label: "Customer",
+    label: "Agent",
     align: "items-start",
   },
   speaker_1: {
     bubble: "bg-[hsl(var(--speaker-2)/0.1)] border-[hsl(var(--speaker-2)/0.2)]",
     name: "text-[hsl(var(--speaker-2))]",
-    label: "Agent",
+    label: "Customer",
     align: "items-end",
   },
   speaker_2: {
@@ -122,7 +122,7 @@ export function TranscriptDisplay({ data, keywords = [] }: TranscriptDisplayProp
         <div className="p-4 space-y-3">
           {segments.map((seg, i) => {
             const style = SPEAKER_STYLES[seg.speaker] || SPEAKER_STYLES.speaker_0;
-            const isAgent = seg.speaker === "speaker_1";
+            const isAgent = seg.speaker === "speaker_0";
             return (
               <div key={i} className={cn("flex flex-col", style.align)}>
                 <div className="flex items-center gap-2 mb-1">
