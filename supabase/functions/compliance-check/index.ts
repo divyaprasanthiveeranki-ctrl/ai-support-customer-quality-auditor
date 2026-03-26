@@ -43,13 +43,27 @@ serve(async (req) => {
       .map((d: any, i: number) => `Rule ${i + 1} [${d.source}]: ${d.rule}\n${d.content}`)
       .join("\n\n");
 
+    // Normalize speaker labels: speaker_0 = Agent, speaker_1 = Customer
+    // The transcript may arrive as "Speaker 1:"/"Speaker 2:" (1-based) from buildTranscriptText,
+    // where Speaker 1 = speaker_0 = Agent and Speaker 2 = speaker_1 = Customer.
+    const normalizedTranscript = transcript_text
+      .replace(/\bSpeaker 1\b/g, "Agent")
+      .replace(/\bSpeaker 2\b/g, "Customer")
+      .replace(/\bspeaker_0\b/g, "Agent")
+      .replace(/\bspeaker_1\b/g, "Customer");
+
     const prompt = `You are a call center compliance auditor. Analyze this transcript against the company's SOP rules and knowledge base.
+
+IMPORTANT ROLE DEFINITIONS:
+- "Agent" = the support representative whose performance is being evaluated
+- "Customer" = the caller/client
+All compliance rules apply to the AGENT's behavior only. Do not penalize the agent for things the customer says or does.
 
 KNOWLEDGE BASE & SOP RULES:
 ${kbContext}
 
 TRANSCRIPT:
-${transcript_text}
+${normalizedTranscript}
 
 Return ONLY valid JSON with no markdown:
 {
@@ -59,21 +73,21 @@ Return ONLY valid JSON with no markdown:
     {
       "rule": "<which rule was violated>",
       "severity": "<low|medium|high|critical>",
-      "description": "<what happened>",
+      "description": "<what the agent did or failed to do, with a quote from the transcript>",
       "timestamp": "<approximate time in transcript if available>",
-      "recommendation": "<what agent should have done>"
+      "recommendation": "<what the agent should have done instead>"
     }
   ],
   "passed": [
     {
       "rule": "<rule that was followed>",
-      "note": "<brief note on how it was met>"
+      "note": "<brief note on how the agent met this rule, with a quote if possible>"
     }
   ],
   "recommendations": ["<improvement suggestion 1>", "<improvement suggestion 2>"]
 }
 
-Check every rule. If a rule doesn't apply to this call, skip it. Be specific about violations with evidence from the transcript.`;
+Check every rule against the Agent's lines only. If a rule doesn't apply to this call, skip it. Be specific about violations with evidence from the Agent's lines in the transcript.`;
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
