@@ -42,7 +42,7 @@ serve(async (req) => {
           const mins = Math.floor(currentStart / 60);
           const secs = Math.floor(currentStart % 60);
           const ts = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-          const num = parseInt(currentSpeaker.replace("speaker_", ""), 10) + 1;
+          const role = currentSpeaker === "speaker_0" ? "Agent" : "Customer";
           segments.push(`[${ts}] Speaker ${num}: ${currentText.trim()}`);
           currentText = "";
         }
