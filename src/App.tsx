@@ -6,8 +6,16 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
+import { DashboardLayout } from "./components/DashboardLayout";
+import DashboardOverview from "./pages/DashboardOverview";
+import UploadPage from "./pages/UploadPage";
+import AnalysisPage from "./pages/AnalysisPage";
+import ScorePage from "./pages/ScorePage";
+import CompliancePage from "./pages/CompliancePage";
+import InsightsPage from "./pages/InsightsPage";
+import ReportsPage from "./pages/ReportsPage";
+import SettingsPage from "./pages/SettingsPage";
 
 const queryClient = new QueryClient();
 
@@ -25,10 +33,19 @@ const App = () => (
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <Dashboard />
+                <DashboardLayout />
               </ProtectedRoute>
             }
-          />
+          >
+            <Route index element={<DashboardOverview />} />
+            <Route path="upload" element={<UploadPage />} />
+            <Route path="analysis" element={<AnalysisPage />} />
+            <Route path="score" element={<ScorePage />} />
+            <Route path="compliance" element={<CompliancePage />} />
+            <Route path="insights" element={<InsightsPage />} />
+            <Route path="reports" element={<ReportsPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+          </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
