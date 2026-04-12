@@ -1,4 +1,5 @@
-
+# AI Support Customer Quality Auditor
+Project for Infosys Springboard Internship – 2026
 
 ## How can I edit this code?
 
